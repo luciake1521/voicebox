@@ -103,9 +103,9 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   ? 'kokoro'
                   : engine === 'moss_tts_nano'
                     ? 'moss-tts-nano'
-                  : engine === 'qwen_custom_voice'
-                    ? `qwen-custom-voice-${data.modelSize}`
-                    : `qwen-tts-${data.modelSize}`;
+                    : engine === 'qwen_custom_voice'
+                      ? `qwen-custom-voice-${data.modelSize}`
+                      : `qwen-tts-${data.modelSize}`;
       const displayName =
         engine === 'luxtts'
           ? 'LuxTTS'
@@ -121,13 +121,13 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   ? 'Kokoro 82M'
                   : engine === 'moss_tts_nano'
                     ? 'MOSS-TTS-Nano (ONNX CPU)'
-                  : engine === 'qwen_custom_voice'
-                    ? data.modelSize === '1.7B'
-                      ? 'Qwen CustomVoice 1.7B'
-                      : 'Qwen CustomVoice 0.6B'
-                    : data.modelSize === '1.7B'
-                      ? 'Qwen TTS 1.7B'
-                      : 'Qwen TTS 0.6B';
+                    : engine === 'qwen_custom_voice'
+                      ? data.modelSize === '1.7B'
+                        ? 'Qwen CustomVoice 1.7B'
+                        : 'Qwen CustomVoice 0.6B'
+                      : data.modelSize === '1.7B'
+                        ? 'Qwen TTS 1.7B'
+                        : 'Qwen TTS 0.6B';
 
       // Check if model needs downloading
       try {
