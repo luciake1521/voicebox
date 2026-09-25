@@ -131,6 +131,61 @@ class MossTTSNanoBackend:
             # moss-tts-nano package.
             from onnx_tts_runtime import OnnxTtsRuntime
 
+            class VoiceboxOnnxTtsRuntime(OnnxTtsRuntime):
+                """Use Voicebox's bundled libsndfile instead of TorchCodec.
+
+                Recent torchaudio releases route torchaudio.load() through
+                TorchCodec, which in turn requires a separately installed
+                shared FFmpeg build on Windows. Voicebox already ships
+                soundfile/libsndfile, so decode the reference audio there and
+                keep torchaudio only for tensor resampling.
+                """
+
+                def _load_reference_audio(self, reference_audio_path):
+                    import soundfile as sf
+                    import torch
+                    import torchaudio
+
+                    audio, sample_rate = sf.read(
+                        str(Path(reference_audio_path).expanduser().resolve()),
+                        dtype="float32",
+                        always_2d=True,
+                    )
+                    # soundfile: [samples, channels]
+                    # MOSS/torchaudio: [channels, samples]
+                    waveform = torch.from_numpy(audio.T.copy()).to(torch.float32)
+
+                    target_sample_rate = int(self.codec_meta["codec_config"]["sample_rate"])
+                    target_channels = int(self.codec_meta["codec_config"]["channels"])
+
+                    if sample_rate != target_sample_rate:
+                        waveform = torchaudio.functional.resample(
+                            waveform,
+                            sample_rate,
+                            target_sample_rate,
+                        )
+
+                    current_channels = int(waveform.shape[0])
+                    if current_channels == target_channels:
+                        pass
+                    elif current_channels == 1 and target_channels > 1:
+                        waveform = waveform.repeat(target_channels, 1)
+                    elif current_channels > 1 and target_channels == 1:
+                        waveform = waveform.mean(dim=0, keepdim=True)
+                    else:
+                        raise ValueError(
+                            "Unsupported reference audio channel conversion: "
+                            f"{current_channels} -> {target_channels}"
+                        )
+
+                    return (
+                        waveform.unsqueeze(0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                        .astype(np.float32, copy=False)
+                    )
+
             root = self._get_cache_root()
             output_dir = root / ".runtime-output"
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -140,7 +195,7 @@ class MossTTSNanoBackend:
                 "Loading MOSS-TTS-Nano ONNX runtime on CPU (%d threads)...",
                 thread_count,
             )
-            self.model = OnnxTtsRuntime(
+            self.model = VoiceboxOnnxTtsRuntime(
                 model_dir=root,
                 thread_count=thread_count,
                 sample_mode="fixed",
