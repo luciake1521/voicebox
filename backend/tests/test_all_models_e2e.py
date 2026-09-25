@@ -57,6 +57,7 @@ MATRIX: list[MatrixRow] = [
     MatrixRow("qwen_custom_voice 1.7B", "qwen_custom_voice", "1.7B", "preset_qwen_cv",  "qwen-custom-voice-1.7B"),
     MatrixRow("qwen_custom_voice 0.6B", "qwen_custom_voice", "0.6B", "preset_qwen_cv",  "qwen-custom-voice-0.6B"),
     MatrixRow("luxtts",                 "luxtts",            None,   "cloned",          "luxtts"),
+    MatrixRow("moss_tts_nano",           "moss_tts_nano",     None,   "cloned",          "moss-tts-nano"),
     MatrixRow("chatterbox",             "chatterbox",        None,   "cloned",          "chatterbox-tts"),
     MatrixRow("chatterbox_turbo",       "chatterbox_turbo",  None,   "cloned",          "chatterbox-turbo"),
     MatrixRow("tada 1B",                "tada",              "1B",   "cloned",          "tada-1b"),
