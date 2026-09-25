@@ -305,6 +305,33 @@ def build_server(cuda=False, rocm=False):
             "unidic_lite",
             "--hidden-import",
             "loguru",
+            # MOSS-TTS-Nano ONNX — upstream ships its runtime as top-level
+            # py-modules, so PyInstaller cannot discover them through the
+            # moss_tts_nano package automatically.
+            "--hidden-import",
+            "backend.backends.moss_tts_nano_backend",
+            "--hidden-import",
+            "onnx_tts_runtime",
+            "--hidden-import",
+            "ort_cpu_runtime",
+            "--hidden-import",
+            "text_normalization_pipeline",
+            "--hidden-import",
+            "tts_robust_normalizer_single_script",
+            "--collect-all",
+            "moss_tts_nano",
+            # onnxruntime and sentencepiece ship native libraries that must
+            # survive the frozen sidecar build.
+            "--collect-all",
+            "onnxruntime",
+            "--collect-all",
+            "sentencepiece",
+            "--copy-metadata",
+            "moss-tts-nano",
+            "--copy-metadata",
+            "onnxruntime",
+            "--copy-metadata",
+            "sentencepiece",
             # MCP server — Streamable-HTTP endpoint and the 4 voicebox.* tools.
             # FastMCP pulls in a chain of deps (mcp, cyclopts, openapi-pydantic,
             # etc.) that don't auto-discover cleanly under PyInstaller, so we
