@@ -151,7 +151,8 @@ export function FloatingGenerateBox({
     | 'chatterbox_turbo'
     | 'tada'
     | 'kokoro'
-    | 'qwen_custom_voice';
+    | 'qwen_custom_voice'
+    | 'moss_tts_nano';
   useEffect(() => {
     if (selectedProfile?.language) {
       form.setValue('language', selectedProfile.language as LanguageCode);
