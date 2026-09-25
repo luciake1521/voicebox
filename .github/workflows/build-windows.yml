@@ -23,6 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install -r backend/requirements.txt
+          pip install --no-deps chatterbox-tts
+          pip install --no-deps hume-tada
+          pip install --no-deps git+https://github.com/OpenMOSS/MOSS-TTS-Nano.git@8b7bcc9341b3b4ef3a3a58ba1338a7d85ff133eb
 
       - name: Build Python server
         shell: bash
