@@ -27,6 +27,7 @@ const generationSchema = z.object({
       'chatterbox_turbo',
       'tada',
       'kokoro',
+      'moss_tts_nano',
     ])
     .optional(),
   personality: z.boolean().optional(),
@@ -100,6 +101,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   : 'tada-1b'
                 : engine === 'kokoro'
                   ? 'kokoro'
+                  : engine === 'moss_tts_nano'
+                    ? 'moss-tts-nano'
                   : engine === 'qwen_custom_voice'
                     ? `qwen-custom-voice-${data.modelSize}`
                     : `qwen-tts-${data.modelSize}`;
@@ -116,6 +119,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   : 'TADA 1B'
                 : engine === 'kokoro'
                   ? 'Kokoro 82M'
+                  : engine === 'moss_tts_nano'
+                    ? 'MOSS-TTS-Nano (ONNX CPU)'
                   : engine === 'qwen_custom_voice'
                     ? data.modelSize === '1.7B'
                       ? 'Qwen CustomVoice 1.7B'
