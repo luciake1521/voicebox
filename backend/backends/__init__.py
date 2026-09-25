@@ -406,7 +406,11 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
                 "MOSS-TTS-Nano-100M-ONNX/browser_poc_manifest.json",
                 "MOSS-TTS-Nano-100M-ONNX/tts_browser_onnx_meta.json",
                 "MOSS-TTS-Nano-100M-ONNX/tokenizer.model",
+                "MOSS-TTS-Nano-100M-ONNX/moss_tts_global_shared.data",
+                "MOSS-TTS-Nano-100M-ONNX/moss_tts_local_shared.data",
                 "MOSS-Audio-Tokenizer-Nano-ONNX/codec_browser_onnx_meta.json",
+                "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_encode.data",
+                "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_decode_shared.data",
             ],
         ),
     ]
