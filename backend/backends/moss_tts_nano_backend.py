@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -32,6 +33,14 @@ MOSS_CODEC_REPO = "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX"
 MOSS_CACHE_SUBDIR = "voicebox-moss-tts-nano"
 MOSS_COMPLETE_SENTINEL = ".voicebox-complete"
 
+# The stock MOSS runtime lets punctuation drive prosody inside a chunk and
+# inserts 240-400 ms between long-text chunks. On the Windows Voicebox path
+# this produced very long comma/full-stop pauses and occasional swallowed
+# phonemes. Split short clauses explicitly, remove the punctuation from the
+# model input, then add a small controlled gap between clean chunks instead.
+MOSS_PHRASE_GAP_SECONDS = 0.10
+_MOSS_PHRASE_BOUNDARY_RE = re.compile(r"[,，.!?。！？;；:：]+")
+
 _TTS_REQUIRED = (
     "MOSS-TTS-Nano-100M-ONNX/browser_poc_manifest.json",
     "MOSS-TTS-Nano-100M-ONNX/tts_browser_onnx_meta.json",
@@ -44,6 +53,21 @@ _CODEC_REQUIRED = (
     "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_encode.data",
     "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_decode_shared.data",
 )
+
+
+def _split_moss_phrases(text: str) -> list[str]:
+    """Split punctuation-heavy speech into clean clauses for MOSS.
+
+    A single punctuation-free sentence is intentionally left untouched. This
+    lets us preserve the path that already tested cleanly while isolating the
+    multi-clause failure mode.
+    """
+
+    normalized = " ".join(str(text or "").split()).strip()
+    if not normalized:
+        return []
+    pieces = [piece.strip() for piece in _MOSS_PHRASE_BOUNDARY_RE.split(normalized)]
+    return [piece for piece in pieces if piece]
 
 
 class MossTTSNanoBackend:
@@ -132,14 +156,7 @@ class MossTTSNanoBackend:
             from onnx_tts_runtime import OnnxTtsRuntime
 
             class VoiceboxOnnxTtsRuntime(OnnxTtsRuntime):
-                """Use Voicebox's bundled libsndfile instead of TorchCodec.
-
-                Recent torchaudio releases route torchaudio.load() through
-                TorchCodec, which in turn requires a separately installed
-                shared FFmpeg build on Windows. Voicebox already ships
-                soundfile/libsndfile, so decode the reference audio there and
-                keep torchaudio only for tensor resampling.
-                """
+                """Voicebox-specific audio decode and chunk policy for MOSS."""
 
                 def _load_reference_audio(self, reference_audio_path):
                     import soundfile as sf
@@ -185,6 +202,36 @@ class MossTTSNanoBackend:
                         .numpy()
                         .astype(np.float32, copy=False)
                     )
+
+                def split_voice_clone_text(self, text: str, max_tokens: int = 75):
+                    """Prefer punctuation-free clauses over stock sentence chunks.
+
+                    The reference audio is still encoded once by the upstream
+                    synthesize() implementation; only TTS chunks are separated.
+                    Oversized clauses fall back to the upstream token-budget
+                    splitter so long text remains safe.
+                    """
+
+                    phrases = _split_moss_phrases(text)
+                    if len(phrases) <= 1:
+                        return super().split_voice_clone_text(text, max_tokens=max_tokens)
+
+                    safe_max_tokens = max(1, int(max_tokens))
+                    chunks: list[str] = []
+                    for phrase in phrases:
+                        if self.count_text_tokens(phrase) <= safe_max_tokens:
+                            chunks.append(phrase)
+                        else:
+                            chunks.extend(
+                                super().split_voice_clone_text(
+                                    phrase,
+                                    max_tokens=safe_max_tokens,
+                                )
+                            )
+                    return chunks
+
+                def estimate_voice_clone_inter_chunk_pause_seconds(self, text_chunk: str) -> float:
+                    return MOSS_PHRASE_GAP_SECONDS
 
             root = self._get_cache_root()
             output_dir = root / ".runtime-output"
