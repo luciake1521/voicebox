@@ -14,6 +14,18 @@ def test_moss_model_is_registered():
     assert ".voicebox-complete" in config.cache_required_files
 
 
+def test_moss_phrase_split_removes_problematic_punctuation():
+    assert moss_backend._split_moss_phrases(
+        "Hey, you alright? Take your time. There is no hurry."
+    ) == [
+        "Hey",
+        "you alright",
+        "Take your time",
+        "There is no hurry",
+    ]
+    assert moss_backend._split_moss_phrases("Hey you alright") == ["Hey you alright"]
+
+
 def test_moss_cache_requires_complete_bundle(monkeypatch, tmp_path):
     backend = MossTTSNanoBackend()
     root = tmp_path / "moss"
