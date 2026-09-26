@@ -59,6 +59,10 @@ class ModelConfig:
     retries_runaway: bool = False
     supports_instruct: bool = False
     languages: list[str] = field(default_factory=lambda: ["en"])
+    # Optional Voicebox-managed cache bundle for engines whose weights span
+    # multiple repositories or don't use Hugging Face's standard repo layout.
+    cache_subdir: Optional[str] = None
+    cache_required_files: list[str] = field(default_factory=list)
 
 
 @runtime_checkable
@@ -216,6 +220,7 @@ TTS_ENGINES = {
     "chatterbox_turbo": "Chatterbox Turbo",
     "tada": "TADA",
     "kokoro": "Kokoro",
+    "moss_tts_nano": "MOSS-TTS-Nano",
 }
 
 LLM_ENGINES = {
@@ -370,6 +375,43 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
             hf_repo_id="hexgrad/Kokoro-82M",
             size_mb=350,
             languages=["en", "es", "fr", "hi", "it", "pt", "ja", "zh"],
+        ),
+        ModelConfig(
+            model_name="moss-tts-nano",
+            display_name="MOSS-TTS-Nano (ONNX CPU)",
+            engine="moss_tts_nano",
+            hf_repo_id="OpenMOSS-Team/MOSS-TTS-Nano-100M-ONNX",
+            size_mb=770,
+            languages=[
+                "zh",
+                "en",
+                "de",
+                "es",
+                "fr",
+                "ja",
+                "it",
+                "ko",
+                "ru",
+                "ar",
+                "pl",
+                "pt",
+                "da",
+                "sv",
+                "el",
+                "tr",
+            ],
+            cache_subdir="voicebox-moss-tts-nano",
+            cache_required_files=[
+                ".voicebox-complete",
+                "MOSS-TTS-Nano-100M-ONNX/browser_poc_manifest.json",
+                "MOSS-TTS-Nano-100M-ONNX/tts_browser_onnx_meta.json",
+                "MOSS-TTS-Nano-100M-ONNX/tokenizer.model",
+                "MOSS-TTS-Nano-100M-ONNX/moss_tts_global_shared.data",
+                "MOSS-TTS-Nano-100M-ONNX/moss_tts_local_shared.data",
+                "MOSS-Audio-Tokenizer-Nano-ONNX/codec_browser_onnx_meta.json",
+                "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_encode.data",
+                "MOSS-Audio-Tokenizer-Nano-ONNX/moss_audio_tokenizer_decode_shared.data",
+            ],
         ),
     ]
 
@@ -723,6 +765,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .qwen_custom_voice_backend import QwenCustomVoiceBackend
 
             backend = QwenCustomVoiceBackend()
+        elif engine == "moss_tts_nano":
+            from .moss_tts_nano_backend import MossTTSNanoBackend
+
+            backend = MossTTSNanoBackend()
         else:
             raise ValueError(f"Unknown TTS engine: {engine}. Supported: {list(TTS_ENGINES.keys())}")
 

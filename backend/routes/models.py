@@ -137,6 +137,21 @@ async def migrate_models(request: models.ModelMigrateRequest):
 
     progress_manager = get_progress_manager()
     model_dirs = [d for d in source.iterdir() if d.name.startswith("models--") and d.is_dir()]
+
+    # Some engines (for example MOSS-TTS-Nano ONNX) span multiple upstream
+    # repositories and keep them in one Voicebox-managed bundle. Include
+    # those bundle directories when the user migrates the model cache.
+    from ..backends import get_all_model_configs
+
+    known_paths = {d.resolve() for d in model_dirs}
+    for cfg in get_all_model_configs():
+        if not cfg.cache_subdir:
+            continue
+        candidate = source / cfg.cache_subdir
+        if candidate.is_dir() and candidate.resolve() not in known_paths:
+            model_dirs.append(candidate)
+            known_paths.add(candidate.resolve())
+
     if not model_dirs:
         progress_manager.update_progress("migration", 1, 1, status="complete")
         progress_manager.mark_complete("migration")
@@ -252,13 +267,12 @@ async def get_model_status():
             "display_name": cfg.display_name,
             "hf_repo_id": cfg.hf_repo_id,
             "model_size": cfg.model_size,
+            "cache_subdir": cfg.cache_subdir,
+            "cache_required_files": list(cfg.cache_required_files),
             "check_loaded": lambda c=cfg: check_model_loaded(c),
         }
         for cfg in registry_configs
     ]
-
-    model_to_repo = {cfg["model_name"]: cfg["hf_repo_id"] for cfg in model_configs}
-    active_download_repos = {model_to_repo.get(name) for name in active_download_names if name in model_to_repo}
 
     cache_info = None
     if use_scan_cache:
@@ -275,7 +289,31 @@ async def get_model_status():
             size_mb = None
             loaded = False
 
-            if cache_info:
+            custom_cache_subdir = config["cache_subdir"]
+            if custom_cache_subdir:
+                try:
+                    custom_cache = Path(hf_constants.HF_HUB_CACHE) / custom_cache_subdir
+                    required_files = config["cache_required_files"]
+                    has_incomplete = (
+                        custom_cache.exists() and any(custom_cache.rglob("*.incomplete"))
+                    )
+                    has_required = custom_cache.exists() and all(
+                        (custom_cache / relative_path).is_file()
+                        for relative_path in required_files
+                    )
+                    if has_required and not has_incomplete:
+                        downloaded = True
+                        total_size = sum(
+                            item.stat().st_size
+                            for item in custom_cache.rglob("*")
+                            if item.is_file() and not item.name.endswith(".incomplete")
+                        )
+                        size_mb = total_size / (1024 * 1024)
+                except Exception:
+                    downloaded = False
+                    size_mb = None
+
+            if not custom_cache_subdir and cache_info:
                 repo_id = config["hf_repo_id"]
                 for repo in cache_info.repos:
                     if repo.repo_id == repo_id:
@@ -283,7 +321,7 @@ async def get_model_status():
                         for rev in repo.revisions:
                             for f in rev.files:
                                 fname = f.file_name.lower()
-                                if fname.endswith((".safetensors", ".bin", ".pt", ".pth", ".npz")):
+                                if fname.endswith((".safetensors", ".bin", ".pt", ".pth", ".npz", ".onnx")):
                                     has_model_weights = True
                                     break
                             if has_model_weights:
@@ -307,7 +345,7 @@ async def get_model_status():
                                 pass
                         break
 
-            if not downloaded:
+            if not downloaded and not custom_cache_subdir:
                 try:
                     cache_dir = hf_constants.HF_HUB_CACHE
                     repo_cache = Path(cache_dir) / ("models--" + config["hf_repo_id"].replace("/", "--"))
@@ -326,6 +364,7 @@ async def get_model_status():
                                     or any(snapshots_dir.rglob("*.pt"))
                                     or any(snapshots_dir.rglob("*.pth"))
                                     or any(snapshots_dir.rglob("*.npz"))
+                                    or any(snapshots_dir.rglob("*.onnx"))
                                 )
 
                             if has_model_files:
@@ -347,7 +386,7 @@ async def get_model_status():
             except Exception:
                 loaded = False
 
-            is_downloading = config["hf_repo_id"] in active_download_repos
+            is_downloading = config["model_name"] in active_download_names
 
             if is_downloading:
                 downloaded = False
@@ -370,7 +409,7 @@ async def get_model_status():
             except Exception:
                 loaded = False
 
-            is_downloading = config["hf_repo_id"] in active_download_repos
+            is_downloading = config["model_name"] in active_download_names
 
             statuses.append(
                 models.ModelStatus(
@@ -459,8 +498,11 @@ async def delete_model(model_name: str):
     try:
         unload_model_by_config(config)
 
-        cache_dir = hf_constants.HF_HUB_CACHE
-        repo_cache_dir = Path(cache_dir) / ("models--" + hf_repo_id.replace("/", "--"))
+        cache_dir = Path(hf_constants.HF_HUB_CACHE)
+        if config.cache_subdir:
+            repo_cache_dir = cache_dir / config.cache_subdir
+        else:
+            repo_cache_dir = cache_dir / ("models--" + hf_repo_id.replace("/", "--"))
 
         if not repo_cache_dir.exists():
             raise HTTPException(status_code=404, detail=f"Model {model_name} not found in cache")
