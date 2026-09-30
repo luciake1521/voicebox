@@ -2,6 +2,9 @@ name: Build Windows
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/moss-tts-nano
 
 jobs:
   build-windows:
@@ -23,6 +26,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install -r backend/requirements.txt
+          pip install --no-deps chatterbox-tts
+          pip install --no-deps hume-tada
+          pip install --no-deps git+https://github.com/OpenMOSS/MOSS-TTS-Nano.git@8b7bcc9341b3b4ef3a3a58ba1338a7d85ff133eb
 
       - name: Build Python server
         shell: bash
@@ -51,6 +57,14 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Disable updater signing for unsigned test build
+        shell: pwsh
+        run: |
+          $path = "tauri/src-tauri/tauri.conf.json"
+          $config = Get-Content $path -Raw | ConvertFrom-Json
+          $config.bundle.createUpdaterArtifacts = $false
+          $config | ConvertTo-Json -Depth 100 | Set-Content $path -Encoding utf8
 
       - uses: tauri-apps/tauri-action@v0
         env:
